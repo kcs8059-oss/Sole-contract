@@ -97,29 +97,26 @@ label{font-size:14px;color:var(--mut);display:block}label>*{margin-top:4px}
           <label>부서<select id="dept" required></select></label>
           <label>담당자<input id="owner" required></label>
           <label class="full">계약명<input id="title" required></label>
-          <label>업체명<input id="vendor" required list="vlist"></label>
           <label>사업자등록번호<input id="bizno" required inputmode="numeric" placeholder="000-00-00000"></label>
+          <label>업체명<input id="vendor" required></label>
           <label>기업 구분<select id="kind"><option value="일반">일반기업</option><option value="여성">여성기업</option><option value="장애인">장애인기업</option></select></label>
-          <label>계약일(예정일)<input id="date" type="date" required></label>
-          <label>추정가격 (원, 부가세 제외)<input id="est" required inputmode="numeric"></label>
+          <label>계약일<input id="date" type="date" required></label>
           <label>계약금액 (원, 부가세 포함)<input id="amt" required inputmode="numeric"></label>
-          <label>진행 상태<select id="st"><option value="예정">계약 예정</option><option value="체결">계약 체결</option></select></label>
-          <label class="inline" style="align-self:end;color:var(--ink)"><input type="checkbox" id="rev"> 계약심의위원회 예외 심의 완료</label>
           <label class="full">비고<input id="memo"></label>
         </div>
-        <datalist id="vlist"></datalist>
+        
         <div class="tools" style="margin-top:16px"><button type="submit" id="save">등록</button><button type="button" class="ghost" id="clr">새로 입력</button></div>
       </form>
       <aside class="check" aria-live="polite">
         <h2>등록 전 사전 점검</h2>
-        <div id="chk" class="muted">사업자번호와 금액을 넣으면 해당 업체의 올해 누적(전 부서 합산)을 바로 보여줘.</div>
+        <div id="chk" class="muted">사업자등록번호를 넣으면 업체명 표기와 상관없이 같은 번호로 등록된 올해 누적(전 부서 합산)을 바로 보여줘.</div>
       </aside>
     </div>
   </section>
 
   <section id="v-list" hidden>
     <div class="tools"><select id="ld" style="max-width:200px"></select><input id="lq" placeholder="계약명·업체 검색" style="max-width:280px"><button class="ghost" id="copy">엑셀용 복사</button></div>
-    <div class="scroll"><table class="stack"><thead><tr><th>계약일</th><th>부서</th><th>계약명</th><th>업체</th><th>구분</th><th>추정가격</th><th>계약금액</th><th>집계</th><th>상태</th><th></th></tr></thead><tbody id="lt"></tbody></table></div>
+    <div class="scroll"><table class="stack"><thead><tr><th>계약일</th><th>부서</th><th>계약명</th><th>업체</th><th>구분</th><th>계약금액</th><th>집계</th><th></th></tr></thead><tbody id="lt"></tbody></table></div>
     <p class="muted" id="lEmpty" hidden>조건에 맞는 계약이 없어.</p>
   </section>
 
@@ -130,11 +127,10 @@ label{font-size:14px;color:var(--mut);display:block}label>*{margin-top:4px}
         <div class="fields">
           <label>연간 횟수 한도 (회)<input id="sCnt" inputmode="numeric"></label>
           <label>연간 금액 한도 (원)<input id="sAmt" inputmode="numeric"></label>
-          <label>대상: 일반기업 추정가격 이하<input id="sGen" inputmode="numeric"></label>
-          <label>대상: 여성·장애인 추정가격 이하<input id="sWom" inputmode="numeric"></label>
-          <label>집계 제외: 미만 금액<input id="sMin" inputmode="numeric"></label>
+          <label>대상: 일반기업 이하 (부가세 제외 금액)<input id="sGen" inputmode="numeric"></label>
+          <label>대상: 여성·장애인 이하 (부가세 제외 금액)<input id="sWom" inputmode="numeric"></label>
+          <label>집계 제외: 미만 (부가세 제외 금액)<input id="sMin" inputmode="numeric"></label>
           <label>시행일 (이전 계약 제외)<input id="sFrom" type="date"></label>
-          <label>누적금액 기준<select id="sBase"><option value="amt">계약금액</option><option value="est">추정가격</option></select></label>
           <label>주의 표시 비율 (%)<input id="sWarn" inputmode="numeric"></label>
         </div>
       </div>
@@ -158,6 +154,7 @@ const n=v=>Number(String(v??'').replace(/[^\d.-]/g,''))||0;
 const won=v=>Math.round(v).toLocaleString('ko-KR');
 const eok=v=>v>=1e8?(v/1e8).toFixed(2).replace(/\.?0+$/,'')+'억':v>=1e4?Math.round(v/1e4).toLocaleString('ko-KR')+'만':won(v);
 const biz=v=>{const d=String(v||'').replace(/\D/g,'');return d.length===10?d.slice(0,3)+'-'+d.slice(3,5)+'-'+d.slice(5):d};
+const bizOk=v=>{const d=String(v||'').replace(/\D/g,'');if(d.length!==10)return false;const w=[1,3,7,1,3,7,1,3,5];let t=0;for(let i=0;i<9;i++)t+=d[i]*w[i];t+=Math.floor(d[8]*5/10);return(10-t%10)%10===+d[9]};
 const DEF={cnt:7,amt:3e8,gen:2e7,wom:5e7,min:2e6,from:'2026-11-06',base:'amt',warn:70,depts:['기업지원부','창업지원부','일자리사업부','경영지원팀'],bans:[]};
 let cfg={...DEF},rows=[],editId=null;
 const toast=t=>{const e=$('toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),2200)};
@@ -190,10 +187,11 @@ const delRow=id=>call({op:'delete',id});
 const saveCfg=()=>call({op:'config',cfg,admin:$('sAdmin').value.trim()});
 /* ---------- 집계 규칙 ---------- */
 const yearOf=r=>String(r.date||'').slice(0,4);
+const estOf=r=>Math.round(n(r.amt)/1.1);
 function counted(r){
   const lim=r.kind==='일반'?cfg.gen:cfg.wom;
-  if(n(r.est)>lim)return[false,'대상 아님(금액 초과)'];
-  if(n(r.est)<cfg.min)return[false,'제외(소액)'];
+  if(estOf(r)>lim)return[false,'대상 아님('+eok(lim*1.1)+' 초과)'];
+  if(estOf(r)<cfg.min)return[false,'제외(소액)'];
   if(cfg.from&&r.date<cfg.from)return[false,'시행일 이전'];
   return[true,'집계'];
 }
@@ -206,15 +204,16 @@ function banOf(b){
 function vendors(y,skip){
   const m=new Map();
   for(const r of rows){if(yearOf(r)!==y||r.id===skip)continue;const[ok]=counted(r);if(!ok)continue;
-    const k=biz(r.bizno)||r.vendor;const v=m.get(k)||{k,name:r.vendor,cnt:0,amt:0,depts:new Set(),rev:0};
-    v.cnt++;v.amt+=n(cfg.base==='est'?r.est:r.amt);v.depts.add(r.dept);if(r.rev)v.rev++;m.set(k,v)}
+    const k=biz(r.bizno);const v=m.get(k)||{k,name:r.vendor,cnt:0,amt:0,depts:new Set(),rev:0};
+    v.cnt++;v.amt+=n(r.amt);v.depts.add(r.dept);m.set(k,v)}
   return m;
 }
 function allVendors(y){
   const m=new Map();
   for(const r of rows){if(yearOf(r)!==y)continue;const[ok]=counted(r);
-    const k=biz(r.bizno)||r.vendor;const v=m.get(k)||{k,name:r.vendor,cnt:0,amt:0,tot:0,depts:new Set(),rev:0};
-    v.tot++;v.depts.add(r.dept);if(ok){v.cnt++;v.amt+=n(cfg.base==='est'?r.est:r.amt);if(r.rev)v.rev++}m.set(k,v)}
+    const k=biz(r.bizno);const v=m.get(k)||{k,name:r.vendor,cnt:0,amt:0,tot:0,depts:new Set(),names:{}};
+    v.tot++;v.depts.add(r.dept);v.names[r.vendor]=(v.names[r.vendor]||0)+1;if(ok){v.cnt++;v.amt+=n(r.amt)}m.set(k,v)}
+  for(const v of m.values()){const ns=Object.entries(v.names).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);v.name=ns[0];v.alias=ns.slice(1)}
   return m;
 }
 function level(cnt,amt){const w=cfg.warn/100;if(cnt>cfg.cnt||amt>cfg.amt)return'over';if(cnt>=cfg.cnt||amt>=cfg.amt)return'x';if(cnt>=cfg.cnt*w||amt>=cfg.amt*w)return'w';return'ok'}
@@ -234,63 +233,64 @@ function renderStatus(){
   $('kpi').innerHTML=[[all.length,'등록 계약(건)'],[cnt,'총량제 집계 대상(건)'],[lv.filter(l=>l!=='none').length,'집계 업체 수'],[lv.filter(l=>l==='x'||l==='over').length,'한도 도달·초과 업체'],[lv.filter(l=>l==='w').length,'주의 업체']].map(([a,b])=>`<div><b>${a}</b><span>${b}</span></div>`).join('');
   const list=vs.map((v,i)=>({...v,lv:lv[i]})).filter(v=>(!q||v.name.includes(q)||v.k.includes(q.replace(/\D/g,'')||'§'))&&(!fs||(fs==='x'?['x','over'].includes(v.lv):v.lv===fs))).sort((a,b)=>b.cnt/cfg.cnt+b.amt/cfg.amt-(a.cnt/cfg.cnt+a.amt/cfg.amt));
   $('vEmpty').hidden=!!all.length;
-  $('vt').innerHTML=list.map(v=>{const[c,t]=LV[v.lv],ban=banOf(v.k);return`<tr><td><b>${esc(v.name)}</b>${ban?' <span class="chip c-x">체불명단</span>':''}</td><td class="num">${esc(biz(v.k))}</td><td>${gauge(v.cnt,cfg.cnt,v.cnt+' / '+cfg.cnt+'회')}</td><td>${gauge(v.amt,cfg.amt,eok(v.amt)+' / '+eok(cfg.amt))}</td><td>${esc([...v.depts].join(', '))}</td><td><span class="chip ${c}">${t}</span>${v.tot>v.cnt?` <span class="muted">등록 ${v.tot}건 중 집계 ${v.cnt}</span>`:''}${v.rev?` <span class="muted">심의 ${v.rev}</span>`:''}</td></tr>`}).join('');
+  $('vt').innerHTML=list.map(v=>{const[c,t]=LV[v.lv],ban=banOf(v.k);return`<tr><td><b>${esc(v.name)}</b>${v.alias.length?`<div class="muted">다른 표기: ${esc(v.alias.join(', '))}</div>`:''}${ban?' <span class="chip c-x">체불명단</span>':''}</td><td class="num">${esc(biz(v.k))}</td><td>${gauge(v.cnt,cfg.cnt,v.cnt+' / '+cfg.cnt+'회')}</td><td>${gauge(v.amt,cfg.amt,eok(v.amt)+' / '+eok(cfg.amt))}</td><td>${esc([...v.depts].join(', '))}</td><td><span class="chip ${c}">${t}</span>${v.tot>v.cnt?` <span class="muted">등록 ${v.tot}건 중 집계 ${v.cnt}</span>`:''}</td></tr>`}).join('');
 }
 function renderList(){
   const y=curY(),d=$('ld').value,q=$('lq').value.trim();
   const list=rows.filter(r=>yearOf(r)===y&&(!d||r.dept===d)&&(!q||(r.title+r.vendor).includes(q))).sort((a,b)=>String(b.date).localeCompare(a.date));
   $('lEmpty').hidden=!!list.length;
-  $('lt').innerHTML=list.map(r=>{const[ok,why]=counted(r);return`<tr><td class="num">${esc(r.date)}</td><td>${esc(r.dept)}</td><td>${esc(r.title)}</td><td>${esc(r.vendor)}</td><td>${esc(r.kind)}</td><td class="num">${won(n(r.est))}</td><td class="num">${won(n(r.amt))}</td><td><span class="chip ${ok?'c-ok':'c-m'}">${esc(why)}</span>${r.rev?' <span class="chip c-w">심의</span>':''}</td><td>${esc(r.st)}</td><td style="white-space:nowrap"><button class="ghost sm" data-e="${esc(r.id)}">수정</button> <button class="del sm" data-d="${esc(r.id)}">삭제</button></td></tr>`}).join('');
+  $('lt').innerHTML=list.map(r=>{const[ok,why]=counted(r);return`<tr><td class="num">${esc(r.date)}</td><td>${esc(r.dept)}</td><td>${esc(r.title)}</td><td>${esc(r.vendor)}</td><td>${esc(r.kind)}</td><td class="num">${won(n(r.amt))}</td><td><span class="chip ${ok?'c-ok':'c-m'}">${esc(why)}</span></td><td style="white-space:nowrap"><button class="ghost sm" data-e="${esc(r.id)}">수정</button> <button class="del sm" data-d="${esc(r.id)}">삭제</button></td></tr>`}).join('');
 }
 function renderSelects(){
   const keep=$('dept').value,keepL=$('ld').value;
   $('dept').innerHTML=cfg.depts.map(d=>`<option>${esc(d)}</option>`).join('');if(keep)$('dept').value=keep;
   $('ld').innerHTML='<option value="">전체 부서</option>'+cfg.depts.map(d=>`<option>${esc(d)}</option>`).join('');$('ld').value=keepL;
-  const vs=new Map(rows.map(r=>[r.vendor,r.bizno]));$('vlist').innerHTML=[...vs.keys()].map(v=>`<option value="${esc(v)}">`).join('');
   $('hCnt').textContent=cfg.cnt;$('hAmt').textContent=eok(cfg.amt)+'원';
 }
 function renderAll(){renderYears();renderSelects();renderStatus();renderList();renderCheck()}
 
 /* ---------- 사전 점검 ---------- */
-function formRow(){return{id:editId||('c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)),dept:$('dept').value,owner:$('owner').value.trim(),title:$('title').value.trim(),vendor:$('vendor').value.trim(),bizno:biz($('bizno').value),kind:$('kind').value,date:$('date').value,est:n($('est').value),amt:n($('amt').value),st:$('st').value,rev:$('rev').checked,memo:$('memo').value.trim()}}
+function formRow(){return{id:editId||('c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)),dept:$('dept').value,owner:$('owner').value.trim(),title:$('title').value.trim(),vendor:$('vendor').value.trim(),bizno:biz($('bizno').value),kind:$('kind').value,date:$('date').value,est:Math.round(n($('amt').value)/1.1),amt:n($('amt').value),memo:$('memo').value.trim()}}
 function renderCheck(){
   const r=formRow(),box=$('chk');
-  if(!r.bizno&&!r.vendor){box.className='muted';box.textContent='사업자번호와 금액을 넣으면 해당 업체의 올해 누적(전 부서 합산)을 바로 보여줘.';return}
+  if(!r.bizno){box.className='muted';box.textContent='사업자등록번호를 넣으면 업체명 표기와 상관없이 같은 번호로 등록된 올해 누적(전 부서 합산)을 바로 보여줘.';return}
   box.className='';
-  const y=yearOf(r)||curY(),k=biz(r.bizno)||r.vendor,v=vendors(y,editId).get(k)||{cnt:0,amt:0,depts:new Set()};
-  const[ok,why]=counted(r),add=n(cfg.base==='est'?r.est:r.amt),aC=v.cnt+(ok?1:0),aA=v.amt+(ok?add:0),lv=level(aC,aA),ban=banOf(r.bizno);
+  const y=yearOf(r)||curY(),k=biz(r.bizno),v=vendors(y,editId).get(k)||{cnt:0,amt:0,depts:new Set()},known=[...new Set(rows.filter(x=>biz(x.bizno)===k&&x.id!==editId).map(x=>x.vendor))];
+  const[ok,why]=counted(r),add=n(r.amt),aC=v.cnt+(ok?1:0),aA=v.amt+(ok?add:0),lv=level(aC,aA),ban=banOf(r.bizno);
   const msgs=[];
+  if(r.bizno.replace(/\D/g,'').length===10&&!bizOk(r.bizno))msgs.push(['c-x','사업자등록번호 검증번호가 맞지 않아. 오타인지 확인해줘.']);
   if(ban)msgs.push(['c-x',`임금체불 명단 업체야 (${esc(ban.name||'')} ${esc(ban.date||'')}). 1년 이내면 수의계약 대상에서 배제돼.`]);
   if(!ok)msgs.push(['c-m',`이 계약은 총량제 ${esc(why)} — 횟수·금액에 안 잡혀.`]);
-  else if(lv==='over')msgs.push(['c-x',r.rev?'한도를 넘지만 계약심의위원회 예외 심의 완료로 표시됐어. 심의 결과 문서 번호를 비고에 남겨줘.':'이 계약을 넣으면 한도를 넘어. 계약심의위원회 예외 심의가 필요해.']);
+  else if(lv==='over')msgs.push(['c-x','이 계약을 넣으면 한도를 넘어. 계약심의위원회 예외 심의가 필요해. 심의를 거쳤으면 비고에 결과를 남겨줘.']);
   else if(lv==='x')msgs.push(['c-w','이 계약으로 한도에 딱 도달해. 다음 계약부터는 심의 대상이야.']);
   else if(lv==='w')msgs.push(['c-w','한도에 가까워. 다른 업체 검토를 권장해.']);
   else msgs.push(['c-ok','한도 안이야. 등록해도 돼.']);
-  box.innerHTML=`<dl><dt>업체</dt><dd>${esc(r.vendor||'-')} ${esc(r.bizno)}</dd><dt>올해 기존</dt><dd>${v.cnt}회 · ${eok(v.amt)}원</dd><dt>이번 계약 반영 후</dt><dd><b>${aC}회 · ${eok(aA)}원</b></dd><dt>한도</dt><dd>${cfg.cnt}회 · ${eok(cfg.amt)}원</dd><dt>이용 부서</dt><dd>${esc([...v.depts].join(', ')||'없음')}</dd></dl>${gauge(aC,cfg.cnt,aC+'회')}${gauge(aA,cfg.amt,eok(aA))}`+msgs.map(([c,t])=>`<div class="msg ${c}">${t}</div>`).join('');
+  box.innerHTML=`<dl><dt>업체</dt><dd>${esc(r.vendor||'-')} ${esc(r.bizno)}</dd><dt>올해 기존</dt><dd>${v.cnt}회 · ${eok(v.amt)}원</dd><dt>이번 계약 반영 후</dt><dd><b>${aC}회 · ${eok(aA)}원</b></dd><dt>한도</dt><dd>${cfg.cnt}회 · ${eok(cfg.amt)}원</dd><dt>등록된 표기</dt><dd>${esc(known.join(', ')||'처음 등록')}</dd><dt>이용 부서</dt><dd>${esc([...v.depts].join(', ')||'없음')}</dd></dl>${gauge(aC,cfg.cnt,aC+'회')}${gauge(aA,cfg.amt,eok(aA))}`+msgs.map(([c,t])=>`<div class="msg ${c}">${t}</div>`).join('');
 }
 
 /* ---------- 이벤트 ---------- */
 function clearForm(){editId=null;$('f').reset();$('date').value=new Date().toISOString().slice(0,10);$('fTitle').textContent='수의계약 등록';$('save').textContent='등록';renderCheck()}
-$('f').addEventListener('submit',async e=>{e.preventDefault();const r=formRow();if(!r.est||!r.amt){toast('금액을 확인해줘');return}
+$('f').addEventListener('submit',async e=>{e.preventDefault();const r=formRow();if(!bizOk(r.bizno)){toast('사업자등록번호가 올바르지 않아. 다시 확인해줘');$('bizno').focus();return}if(!r.amt){toast('계약금액을 확인해줘');return}
   r.updatedAt=new Date().toISOString();const old=rows.find(x=>x.id===r.id);r.createdAt=old?.createdAt||r.updatedAt;
   try{await saveRow(r);toast(editId?'수정했어':'등록했어');const d=r.dept,o=r.owner;clearForm();$('dept').value=d;$('owner').value=o}catch(err){toast('저장 실패: '+(err?.code||'네트워크'))}});
 $('clr').onclick=clearForm;
-['dept','owner','title','vendor','bizno','kind','date','est','amt','st','rev'].forEach(id=>$(id).addEventListener('input',renderCheck));
-$('vendor').addEventListener('change',()=>{const r=rows.find(x=>x.vendor===$('vendor').value);if(r&&!$('bizno').value){$('bizno').value=r.bizno;$('kind').value=r.kind;renderCheck()}});
-['est','amt'].forEach(id=>$(id).addEventListener('blur',()=>{const v=n($(id).value);if(v)$(id).value=won(v)}));
+['dept','owner','title','vendor','bizno','kind','date','amt'].forEach(id=>$(id).addEventListener('input',renderCheck));
+$('bizno').addEventListener('input',()=>{const b=biz($('bizno').value);if(b.length!==12)return;const p=rows.filter(x=>biz(x.bizno)===b).sort((a,c)=>String(c.updatedAt||'').localeCompare(a.updatedAt||''))[0];if(p&&!$('vendor').value){$('vendor').value=p.vendor;$('kind').value=p.kind;renderCheck()}});
+
+['amt'].forEach(id=>$(id).addEventListener('blur',()=>{const v=n($(id).value);if(v)$(id).value=won(v)}));
 $('bizno').addEventListener('blur',()=>{$('bizno').value=biz($('bizno').value)});
 $('year').onchange=()=>{renderStatus();renderList()};$('q').oninput=renderStatus;$('fs').onchange=renderStatus;$('ld').onchange=renderList;$('lq').oninput=renderList;
 $('lt').addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;
   if(b.dataset.e){const r=rows.find(x=>x.id===b.dataset.e);if(!r)return;editId=r.id;
-    for(const k of['dept','owner','title','vendor','bizno','kind','date','memo'])$(k).value=r[k]??'';$('est').value=won(n(r.est));$('amt').value=won(n(r.amt));$('st').value=r.st||'예정';$('rev').checked=!!r.rev;
+    for(const k of['dept','owner','title','vendor','bizno','kind','date','memo'])$(k).value=r[k]??'';$('amt').value=won(n(r.amt));
     $('fTitle').textContent='수의계약 수정';$('save').textContent='수정 저장';location.hash='entry';renderCheck()}
   if(b.dataset.d){if(b.dataset.armed){try{await delRow(b.dataset.d);toast('삭제했어')}catch{toast('삭제 실패')}}else{b.dataset.armed=1;b.textContent='정말 삭제?';setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent='삭제'}},3000)}}});
-$('copy').onclick=async()=>{const y=curY(),h=['계약일','부서','담당자','계약명','업체명','사업자번호','구분','추정가격','계약금액','집계','예외심의','상태','비고'];
-  const t=[h,...rows.filter(r=>yearOf(r)===y).sort((a,b)=>String(a.date).localeCompare(b.date)).map(r=>[r.date,r.dept,r.owner,r.title,r.vendor,r.bizno,r.kind,n(r.est),n(r.amt),counted(r)[1],r.rev?'Y':'',r.st,r.memo])].map(a=>a.map(x=>String(x??'').replace(/\t|\n/g,' ')).join('\t')).join('\n');
+$('copy').onclick=async()=>{const y=curY(),h=['계약일','부서','담당자','계약명','업체명','사업자번호','구분','계약금액','집계','비고'];
+  const t=[h,...rows.filter(r=>yearOf(r)===y).sort((a,b)=>String(a.date).localeCompare(b.date)).map(r=>[r.date,r.dept,r.owner,r.title,r.vendor,r.bizno,r.kind,n(r.amt),counted(r)[1],r.memo])].map(a=>a.map(x=>String(x??'').replace(/\t|\n/g,' ')).join('\t')).join('\n');
   try{await navigator.clipboard.writeText(t);toast('복사했어 — 엑셀에 붙여넣기 하면 돼')}catch{toast('복사가 막혔어')}};
-function fillSettings(){$('sCnt').value=cfg.cnt;$('sAmt').value=won(cfg.amt);$('sGen').value=won(cfg.gen);$('sWom').value=won(cfg.wom);$('sMin').value=won(cfg.min);$('sFrom').value=cfg.from;$('sBase').value=cfg.base;$('sWarn').value=cfg.warn;
+function fillSettings(){$('sCnt').value=cfg.cnt;$('sAmt').value=won(cfg.amt);$('sGen').value=won(cfg.gen);$('sWom').value=won(cfg.wom);$('sMin').value=won(cfg.min);$('sFrom').value=cfg.from;$('sWarn').value=cfg.warn;
   $('sDept').value=cfg.depts.join('\n');$('sBan').value=cfg.bans.map(b=>[b.bizno,b.name,b.date].filter(Boolean).join(', ')).join('\n')}
-$('sSave').onclick=async()=>{cfg={cnt:n($('sCnt').value)||7,amt:n($('sAmt').value)||3e8,gen:n($('sGen').value)||2e7,wom:n($('sWom').value)||5e7,min:n($('sMin').value),from:$('sFrom').value,base:$('sBase').value,warn:n($('sWarn').value)||70,
+$('sSave').onclick=async()=>{cfg={cnt:n($('sCnt').value)||7,amt:n($('sAmt').value)||3e8,gen:n($('sGen').value)||2e7,wom:n($('sWom').value)||5e7,min:n($('sMin').value),from:$('sFrom').value,base:'amt',warn:n($('sWarn').value)||70,
   depts:$('sDept').value.split('\n').map(s=>s.trim()).filter(Boolean),bans:$('sBan').value.split('\n').map(l=>l.split(',').map(s=>s.trim())).filter(a=>a[0]).map(([bizno,name,date])=>({bizno:biz(bizno),name:name||'',date:date||''}))};
   try{await saveCfg();$('sMsg').textContent='저장했어';renderAll()}catch(e){$('sMsg').textContent=e?.code==='admin'?'관리자 코드가 맞지 않아':'저장 실패 ('+(e?.code||'네트워크')+')'}};
 function route(){const v=(location.hash||'#status').slice(1),ok=['status','entry','list','setting'].includes(v)?v:'status';
