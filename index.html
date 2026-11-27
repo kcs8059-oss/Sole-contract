@@ -108,7 +108,7 @@ label{font-size:14px;color:var(--mut);display:block}label>*{margin-top:4px}
           <label class="full">비고<input id="memo"></label>
         </div>
         <datalist id="vlist"></datalist>
-        <div class="tools" style="margin-top:16px"><button type="submit" id="save">등록</button><button type="button" class="ghost" id="reset">새로 입력</button></div>
+        <div class="tools" style="margin-top:16px"><button type="submit" id="save">등록</button><button type="button" class="ghost" id="clr">새로 입력</button></div>
       </form>
       <aside class="check" aria-live="polite">
         <h2>등록 전 사전 점검</h2>
@@ -267,7 +267,7 @@ function clearForm(){editId=null;$('f').reset();$('date').value=new Date().toISO
 $('f').addEventListener('submit',async e=>{e.preventDefault();const r=formRow();if(!r.est||!r.amt){toast('금액을 확인해줘');return}
   r.updatedAt=new Date().toISOString();const old=rows.find(x=>x.id===r.id);r.createdAt=old?.createdAt||r.updatedAt;
   try{await saveRow(r);toast(editId?'수정했어':'등록했어');const d=r.dept,o=r.owner;clearForm();$('dept').value=d;$('owner').value=o}catch(err){toast('저장 실패: '+(err?.code||'네트워크'))}});
-$('reset').onclick=clearForm;
+$('clr').onclick=clearForm;
 ['dept','owner','title','vendor','bizno','kind','date','est','amt','st','rev'].forEach(id=>$(id).addEventListener('input',renderCheck));
 $('vendor').addEventListener('change',()=>{const r=rows.find(x=>x.vendor===$('vendor').value);if(r&&!$('bizno').value){$('bizno').value=r.bizno;$('kind').value=r.kind;renderCheck()}});
 ['est','amt'].forEach(id=>$(id).addEventListener('blur',()=>{const v=n($(id).value);if(v)$(id).value=won(v)}));
