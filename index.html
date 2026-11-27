@@ -84,9 +84,9 @@ label{font-size:14px;color:var(--mut);display:block}label>*{margin-top:4px}
 
   <section id="v-status">
     <div class="kpi" id="kpi"></div>
-    <div class="tools"><input id="q" placeholder="업체명·사업자번호 검색" style="max-width:320px"><select id="fs" style="max-width:180px"><option value="">전체 상태</option><option value="x">한도 도달·초과</option><option value="w">주의</option><option value="ok">정상</option></select></div>
+    <div class="tools"><input id="q" placeholder="업체명·사업자번호 검색" style="max-width:320px"><select id="fs" style="max-width:180px"><option value="">전체 상태</option><option value="x">한도 도달·초과</option><option value="w">주의</option><option value="ok">정상</option><option value="none">집계 제외</option></select></div>
     <div class="scroll"><table class="stack"><thead><tr><th>업체</th><th>사업자번호</th><th>횟수</th><th>누적금액</th><th>이용 부서</th><th>상태</th></tr></thead><tbody id="vt"></tbody></table></div>
-    <p class="muted" id="vEmpty" hidden>아직 등록된 수의계약이 없어. ‘계약 등록’에서 부서별로 입력하면 여기서 업체별로 합쳐져.</p>
+    <p class="muted" id="vEmpty" hidden>이 연도에 등록된 수의계약이 없어. ‘계약 등록’에서 부서별로 입력하면 여기서 업체별로 합쳐져.</p>
   </section>
 
   <section id="v-entry" hidden>
@@ -210,8 +210,15 @@ function vendors(y,skip){
     v.cnt++;v.amt+=n(cfg.base==='est'?r.est:r.amt);v.depts.add(r.dept);if(r.rev)v.rev++;m.set(k,v)}
   return m;
 }
+function allVendors(y){
+  const m=new Map();
+  for(const r of rows){if(yearOf(r)!==y)continue;const[ok]=counted(r);
+    const k=biz(r.bizno)||r.vendor;const v=m.get(k)||{k,name:r.vendor,cnt:0,amt:0,tot:0,depts:new Set(),rev:0};
+    v.tot++;v.depts.add(r.dept);if(ok){v.cnt++;v.amt+=n(cfg.base==='est'?r.est:r.amt);if(r.rev)v.rev++}m.set(k,v)}
+  return m;
+}
 function level(cnt,amt){const w=cfg.warn/100;if(cnt>cfg.cnt||amt>cfg.amt)return'over';if(cnt>=cfg.cnt||amt>=cfg.amt)return'x';if(cnt>=cfg.cnt*w||amt>=cfg.amt*w)return'w';return'ok'}
-const LV={over:['c-x','한도 초과'],x:['c-x','한도 도달'],w:['c-w','주의'],ok:['c-ok','정상']};
+const LV={none:['c-m','집계 제외'],over:['c-x','한도 초과'],x:['c-x','한도 도달'],w:['c-w','주의'],ok:['c-ok','정상']};
 const gauge=(v,max,lab)=>{const p=Math.min(100,v/max*100),c=v>max?'x':p>=cfg.warn?'w':'';return`<div class="gauge"><div class="bar ${c}"><i style="width:${p}%"></i></div><span class="num">${lab}</span></div>`};
 
 /* ---------- 화면 ---------- */
@@ -221,13 +228,13 @@ function renderYears(){
   $('year').innerHTML=[...ys].sort().reverse().map(y=>`<option${y===cur?' selected':''}>${esc(y)}</option>`).join('');
 }
 function renderStatus(){
-  const y=curY(),vs=[...vendors(y).values()],q=$('q').value.trim(),fs=$('fs').value;
+  const y=curY(),vs=[...allVendors(y).values()],q=$('q').value.trim(),fs=$('fs').value;
   const all=rows.filter(r=>yearOf(r)===y),cnt=all.filter(r=>counted(r)[0]).length;
-  const lv=vs.map(v=>level(v.cnt,v.amt));
-  $('kpi').innerHTML=[[all.length,'등록 계약(건)'],[cnt,'총량제 집계 대상(건)'],[vs.length,'집계 업체 수'],[lv.filter(l=>l==='x'||l==='over').length,'한도 도달·초과 업체'],[lv.filter(l=>l==='w').length,'주의 업체']].map(([a,b])=>`<div><b>${a}</b><span>${b}</span></div>`).join('');
+  const lv=vs.map(v=>v.cnt?level(v.cnt,v.amt):'none');
+  $('kpi').innerHTML=[[all.length,'등록 계약(건)'],[cnt,'총량제 집계 대상(건)'],[lv.filter(l=>l!=='none').length,'집계 업체 수'],[lv.filter(l=>l==='x'||l==='over').length,'한도 도달·초과 업체'],[lv.filter(l=>l==='w').length,'주의 업체']].map(([a,b])=>`<div><b>${a}</b><span>${b}</span></div>`).join('');
   const list=vs.map((v,i)=>({...v,lv:lv[i]})).filter(v=>(!q||v.name.includes(q)||v.k.includes(q.replace(/\D/g,'')||'§'))&&(!fs||(fs==='x'?['x','over'].includes(v.lv):v.lv===fs))).sort((a,b)=>b.cnt/cfg.cnt+b.amt/cfg.amt-(a.cnt/cfg.cnt+a.amt/cfg.amt));
-  $('vEmpty').hidden=!!vs.length;
-  $('vt').innerHTML=list.map(v=>{const[c,t]=LV[v.lv],ban=banOf(v.k);return`<tr><td><b>${esc(v.name)}</b>${ban?' <span class="chip c-x">체불명단</span>':''}</td><td class="num">${esc(biz(v.k))}</td><td>${gauge(v.cnt,cfg.cnt,v.cnt+' / '+cfg.cnt+'회')}</td><td>${gauge(v.amt,cfg.amt,eok(v.amt)+' / '+eok(cfg.amt))}</td><td>${esc([...v.depts].join(', '))}</td><td><span class="chip ${c}">${t}</span>${v.rev?` <span class="muted">심의 ${v.rev}</span>`:''}</td></tr>`}).join('');
+  $('vEmpty').hidden=!!all.length;
+  $('vt').innerHTML=list.map(v=>{const[c,t]=LV[v.lv],ban=banOf(v.k);return`<tr><td><b>${esc(v.name)}</b>${ban?' <span class="chip c-x">체불명단</span>':''}</td><td class="num">${esc(biz(v.k))}</td><td>${gauge(v.cnt,cfg.cnt,v.cnt+' / '+cfg.cnt+'회')}</td><td>${gauge(v.amt,cfg.amt,eok(v.amt)+' / '+eok(cfg.amt))}</td><td>${esc([...v.depts].join(', '))}</td><td><span class="chip ${c}">${t}</span>${v.tot>v.cnt?` <span class="muted">등록 ${v.tot}건 중 집계 ${v.cnt}</span>`:''}${v.rev?` <span class="muted">심의 ${v.rev}</span>`:''}</td></tr>`}).join('');
 }
 function renderList(){
   const y=curY(),d=$('ld').value,q=$('lq').value.trim();
